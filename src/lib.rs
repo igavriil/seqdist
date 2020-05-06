@@ -122,6 +122,39 @@ pub fn trim(query: &str, text: &str) -> (usize, usize, usize) {
     (prefix, query_suffix, text_suffix)
 }
 
+pub fn lower_bound(query: &str, text: &str) -> usize {
+    let qh = histogram(query);
+    let th = histogram(text);
+    let mut h_diff: usize = 0;
+    for i in 0..256 {
+        let qf = qh[i];
+        let tf = th[i];
+        let mut diff = 0;
+        if qf < tf {
+            diff = tf - qf;
+        } else if tf < qf {
+            diff = qf - tf;
+        }
+        h_diff += diff;
+    }
+
+    let mut l_diff = 0;
+    if query.len() < text.len() {
+        l_diff = text.len() - query.len();
+    } else if text.len() < query.len() {
+        l_diff = query.len() - text.len();
+    }
+    (h_diff + l_diff) / 2
+}
+
+fn histogram(string: &str) -> [usize; 256] {
+    let mut hist: [usize; 256] = [0; 256];
+    for b in string.bytes() {
+        hist[b as usize] += 1;
+    }
+    hist
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -172,6 +205,41 @@ mod tests {
         assert_eq!(
             myers_unbounded(&query[prefix..query_suffix], &text[prefix..text_suffix]),
             33
+        );
+    }
+
+    #[test]
+    fn same_histograms_lower_bound() {
+        let query = String::from("abcdefghijklmnopqrstuvwxyz");
+        let text = String::from("zyxwvutsrqponmlkjihgfedcba");
+        assert_eq!(lower_bound(&query, &text), 0);
+    }
+
+    #[test]
+    fn different_histograms_lower_bound() {
+        let query = String::from("abcdefghijklm");
+        let text = String::from("nopqrstuvwxyznopqrstuvwxyznopqrstuvwxyz");
+        assert_eq!(lower_bound(&query, &text), 39);
+    }
+
+    #[test]
+    fn random_histograms_lower_bound() {
+        let query = String::from("abcdefghijklm");
+        let text = String::from("anaocphqerfsgtdhuivjbwkxlym");
+        assert_eq!(lower_bound(&query, &text), 14);
+    }
+
+    #[test]
+    fn trimmed_lower_bound() {
+        let query = String::from("abcdefghijklm");
+        let text = String::from("anaocphqerfsgtdhuivjbwkxlym");
+        let (prefix, query_suffix, text_suffix) = trim(&query, &text);
+        assert_eq!(prefix, 1);
+        assert_eq!(query_suffix, 12);
+        assert_eq!(text_suffix, 26);
+        assert_eq!(
+            lower_bound(&query[prefix..query_suffix], &text[prefix..text_suffix]),
+            14
         );
     }
 }
