@@ -98,6 +98,30 @@ pub fn myers_unbounded(query: &str, text: &str) -> usize {
     score
 }
 
+pub fn trim(query: &str, text: &str) -> (usize, usize, usize) {
+    let query_len = query.len();
+    let text_len = text.len();
+
+    let query_bytes: Vec<u8> = query.bytes().collect();
+    let text_bytes: Vec<u8> = text.bytes().collect();
+
+    let mut suffix = 0;
+    while query_len > 0 && query_bytes[query_len - 1 - suffix] == text_bytes[text_len - 1 - suffix]
+    {
+        suffix += 1;
+    }
+
+    let mut prefix = 0;
+    while prefix < query_len && query_bytes[prefix] == text_bytes[prefix] {
+        prefix += 1;
+    }
+
+    let query_suffix = query_len - suffix;
+    let text_suffix = text_len - suffix;
+
+    (prefix, query_suffix, text_suffix)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -115,5 +139,39 @@ mod tests {
         let text =
             String::from("sittingsittingsittingsittingsittingsittingsittingsittingsittingsitting");
         assert_eq!(myers_unbounded(&query, &text), 30);
+    }
+
+    #[test]
+    fn trimmed_small_ascii() {
+        let query = String::from("prE kitten! post");
+        let text = String::from("pre sitting  Post");
+        let (prefix, query_suffix, text_suffix) = trim(&query, &text);
+
+        assert_eq!(prefix, 2);
+        assert_eq!(query_suffix, 13);
+        assert_eq!(text_suffix, 14);
+
+        assert_eq!(
+            myers_64(&query[prefix..query_suffix], &text[prefix..text_suffix]),
+            6
+        );
+    }
+
+    #[test]
+    fn trimmed_big_ascii() {
+        let query = String::from(
+            "prE kitten!kitten!kitten!kitten!kitten!kitten!kitten!kitten!kitten!kitten! post",
+        );
+        let text = String::from(
+            "pre sittingsittingsittingsittingsittingsittingsittingsittingsittingsitting  Post",
+        );
+        let (prefix, query_suffix, text_suffix) = trim(&query, &text);
+        assert_eq!(prefix, 2);
+        assert_eq!(query_suffix, 76);
+        assert_eq!(text_suffix, 77);
+        assert_eq!(
+            myers_unbounded(&query[prefix..query_suffix], &text[prefix..text_suffix]),
+            33
+        );
     }
 }
